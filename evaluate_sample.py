@@ -70,7 +70,7 @@ def main(unused_argv):
     # RGB input has 3 channels.
     rgb_input = tf.placeholder(
         tf.float32,
-        shape=(1, _SAMPLE_VIDEO_FRAMES, _IMAGE_SIZE, _IMAGE_SIZE, 3))
+        shape=(1, _SAMPLE_VIDEO_FRAMES, _IMAGE_SIZE, _IMAGE_SIZE, 3), name='rgb_input')
 
 
     with tf.variable_scope('RGB'):
@@ -95,7 +95,7 @@ def main(unused_argv):
     # Flow input has only 2 channels.
     flow_input = tf.placeholder(
         tf.float32,
-        shape=(1, _SAMPLE_VIDEO_FRAMES, _IMAGE_SIZE, _IMAGE_SIZE, 2))
+        shape=(1, _SAMPLE_VIDEO_FRAMES, _IMAGE_SIZE, _IMAGE_SIZE, 2), name='flow_input')
     with tf.variable_scope('Flow'):
       flow_model = i3d.InceptionI3d(
           NUM_CLASSES, spatial_squeeze=True, final_endpoint='Logits')
@@ -113,7 +113,7 @@ def main(unused_argv):
     model_logits = flow_logits
   else:
     model_logits = rgb_logits + flow_logits
-  model_predictions = tf.nn.softmax(model_logits)
+  model_predictions = tf.nn.softmax(model_logits, name='predictions')
 
   with tf.Session() as sess:
     feed_dict = {}
@@ -136,6 +136,11 @@ def main(unused_argv):
       flow_sample = np.load(_SAMPLE_PATHS['flow'])
       tf.logging.info('Flow data loaded, shape=%s', str(flow_sample.shape))
       feed_dict[flow_input] = flow_sample
+
+    # 导出模型文件
+    output_graph_def = tf.graph_util.convert_variables_to_constants(sess, sess.graph_def, ['predictions'])
+    with tf.gfile.GFile('./data/export/i3d_action_rec.pb', 'wb') as f:
+        f.write(output_graph_def.SerializeToString())
 
     out_logits, out_predictions = sess.run(
         [model_logits, model_predictions],
